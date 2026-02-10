@@ -7,7 +7,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 // Jenkins pulls your code from GitHub
-                git branch: 'main', credentialsId: 'github-creds', url: 'https://github.com/YOUR_USER/digital-factory-backend.git'
+                git branch: 'main', credentialsId: 'github-creds', url: 'https://github.com/Mohith4648/digital-factory-backend.git'
             }
         }
         stage('Podman Build') {
