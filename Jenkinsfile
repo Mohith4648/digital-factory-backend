@@ -4,7 +4,7 @@ pipeline {
     environment {
         APP_NAME = "digital-factory-backend"
         // Update this to your actual email
-        USER_EMAIL = "your-email@gmail.com" 
+        USER_EMAIL = "ceducation700@gmail.com" 
     }
 
     stages {
