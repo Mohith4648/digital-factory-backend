@@ -10,12 +10,13 @@ pipeline {
                 git branch: 'main', credentialsId: 'github-creds', url: 'https://github.com/Mohith4648/digital-factory-backend.git'
             }
         }
-        stage('Podman Build') {
-            steps {
-                echo 'Building Podman Image...'
-                sh "podman build -t ${APP_NAME} ."
-            }
-        }
+        stage('Build Image') {
+    steps {
+        echo 'Building Podman Image...'
+        // We use the full path to avoid "not found" errors
+        sh "/usr/bin/podman build -t ${APP_NAME} ."
+    }
+}
         stage('Deploy') {
             steps {
                 echo 'Deploying to Port 8000...'
