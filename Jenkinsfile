@@ -1,75 +1,75 @@
-name: Angular CI/CD Pipeline
+pipeline {
+    agent any
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    environment {
+        // Define your Docker Hub credentials ID (stored in Jenkins Credentials)
+        DOCKER_CREDS = credentials('docker-hub-credentials-id')
+        IMAGE_NAME = "your-docker-username/angular-app"
+    }
 
-jobs:
-  build-and-test:
-    runs-on: ubuntu-latest
+    stages {
+        // 1. CHECKOUT
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
 
-    steps:
-      # 1. CHECKOUT
-      - name: Checkout Code
-        uses: actions/checkout@v4
+        // 2. INSTALL DEPENDENCIES
+        stage('Install Dependencies') {
+            steps {
+                sh 'npm ci'
+            }
+        }
 
-      # 2. INSTALL DEPENDENCIES
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
+        // 3. CODE QUALITY
+        stage('Code Quality') {
+            steps {
+                sh 'npm run lint'
+                sh 'npx tsc --noEmit'
+            }
+        }
 
-      - name: Install Dependencies
-        run: npm ci
+        // 4. RUN UNIT TESTS
+        stage('Run Unit Tests') {
+            steps {
+                // Runs tests in headless mode so Jenkins doesn't hang
+                sh 'npm test -- --watch=false --browsers=ChromeHeadless'
+            }
+        }
 
-      # 3. CODE QUALITY
-      - name: Lint Check
-        run: npm run lint
+        // 5. BUILD PRODUCTION
+        stage('Build Production') {
+            steps {
+                sh 'npm run build -- --prod'
+            }
+        }
 
-      - name: Type Check (TypeScript)
-        run: npx tsc --noEmit
+        // 6. BUILD DOCKER IMAGE
+        stage('Build Docker Image') {
+            steps {
+                sh "docker build -t ${IMAGE_NAME}:${BUILD_NUMBER} ."
+                sh "docker tag ${IMAGE_NAME}:${BUILD_NUMBER} ${IMAGE_NAME}:latest"
+            }
+        }
 
-      # 4. RUN UNIT TESTS
-      - name: Run Unit Tests
-        run: npm test -- --watch=false --browsers=ChromeHeadless
-
-      # 5. BUILD PRODUCTION
-      - name: Build Production
-        run: npm run build -- --configuration=production
-
-      # 6. BUILD DOCKER IMAGE
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and Push Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
-
-  # 7. PUSH & DEPLOY (Example via SSH)
-  deploy:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to Server via SSH
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
-            docker stop angular-app || true
-            docker rm angular-app || true
-            docker run -d --name angular-app -p 80:80 ${{ secrets.DOCKERHUB_USERNAME }}/angular-app:latest
+        // 7. PUSH & DEPLOY
+        stage('Push & Deploy') {
+            steps {
+                // Login and Push to Docker Hub
+                sh "echo ${DOCKER_CREDS_PSW} | docker login -u ${DOCKER_CREDS_USR} --password-stdin"
+                sh "docker push ${IMAGE_NAME}:${BUILD_NUMBER}"
+                sh "docker push ${IMAGE_NAME}:latest"
+                
+                // Smoke Test (Example: check if container starts)
+                sh "docker run --rm ${IMAGE_NAME}:latest /bin/sh -c 'ls /usr/share/nginx/html'"
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
